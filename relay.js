@@ -129,6 +129,12 @@ term.onData(async d=>{if(ws&&ws.readyState===1){const enc=await encrypt(d);ws.se
 term.onResize(async({cols,rows})=>{if(ws&&ws.readyState===1){const enc=await encrypt(JSON.stringify({type:'resize',cols,rows}));ws.send(enc);}});
 window.addEventListener('resize',()=>fit.fit());
 
+// iOS Safari: force focus on textarea for keyboard input
+document.querySelector('#terminal').addEventListener('touchstart',()=>{
+  const ta=document.querySelector('.xterm-helper-textarea');
+  if(ta){ta.focus();ta.click();}
+});
+
 if(room&&keyHex)connect();
 else if(!room)term.write('\\x1b[31mRoom manquant\\x1b[0m');
 else term.write('\\x1b[31mClé E2E manquante (fragment URL)\\x1b[0m');
