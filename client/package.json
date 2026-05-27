@@ -1,0 +1,14 @@
+{
+  "name": "copilot-remote-client",
+  "version": "1.0.0",
+  "description": "Mac-side client for Copilot Remote Terminal",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "node-pty": "^1.0.0",
+    "ws": "^8.18.0",
+    "qrcode-terminal": "^0.12.0"
+  }
+}
