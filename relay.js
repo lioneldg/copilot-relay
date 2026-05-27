@@ -177,9 +177,9 @@ wss.on('connection', (ws, req) => {
 
   if (role === 'host') {
     session.host = ws;
-    ws.on('message', (data) => {
+    ws.on('message', (data, isBinary) => {
       for (const client of session.clients) {
-        if (client.readyState === client.OPEN) client.send(data);
+        if (client.readyState === client.OPEN) client.send(data, { binary: isBinary });
       }
     });
     ws.on('close', () => {
@@ -193,9 +193,9 @@ wss.on('connection', (ws, req) => {
     if (session.host?.readyState === session.host?.OPEN) {
       session.host.send(JSON.stringify({ type: 'client_joined' }));
     }
-    ws.on('message', (data) => {
+    ws.on('message', (data, isBinary) => {
       if (session.host?.readyState === session.host?.OPEN) {
-        session.host.send(data);
+        session.host.send(data, { binary: isBinary });
       }
     });
     ws.on('close', () => session.clients.delete(ws));
