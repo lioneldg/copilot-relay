@@ -183,6 +183,10 @@ wss.on('connection', (ws, req) => {
     });
   } else {
     session.clients.add(ws);
+    // Notify host that a client joined (so it can resend prompt)
+    if (session.host?.readyState === session.host?.OPEN) {
+      session.host.send(JSON.stringify({ type: 'client_joined' }));
+    }
     ws.on('message', (data) => {
       if (session.host?.readyState === session.host?.OPEN) {
         session.host.send(data);
