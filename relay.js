@@ -22,24 +22,73 @@ const VIEWER_HTML = `<!DOCTYPE html>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5/css/xterm.min.css">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-html,body{height:100%;background:#1a1a2e;overflow:hidden}
-#terminal{height:100%;width:100%}
+html,body{height:100%;background:#1a1a2e;overflow:hidden;touch-action:manipulation}
+#terminal{height:calc(100% - 88px);width:100%}
 .xterm{height:100%;padding:4px}
 #status{position:fixed;top:8px;right:8px;padding:4px 10px;border-radius:8px;font-size:11px;font-family:-apple-system,sans-serif;z-index:99}
 .ok{background:rgba(74,222,128,0.2);color:#4ade80}
 .ko{background:rgba(248,113,113,0.2);color:#f87171}
 .enc{background:rgba(96,165,250,0.2);color:#60a5fa}
+
+/* --- Toolbar --- */
+#toolbar{
+  position:fixed;bottom:0;left:0;right:0;
+  background:#0d0d1a;border-top:1px solid #333;
+  display:flex;flex-direction:column;gap:4px;padding:6px 4px;
+  z-index:100;-webkit-user-select:none;user-select:none;
+}
+#toolbar .row{display:flex;gap:4px;justify-content:center;flex-wrap:nowrap;overflow-x:auto}
+#toolbar button{
+  min-width:38px;height:36px;border:none;border-radius:6px;
+  font-size:13px;font-family:-apple-system,SF Mono,Menlo,monospace;font-weight:500;
+  background:#2a2a3e;color:#e0e0e0;
+  display:flex;align-items:center;justify-content:center;
+  padding:0 8px;flex-shrink:0;
+  -webkit-tap-highlight-color:transparent;
+  transition:background .1s,color .1s;
+}
+#toolbar button:active{background:#4a4a6e}
+#toolbar button.mod{background:#1e1e3a;color:#8b8bab;border:1px solid #3a3a5a}
+#toolbar button.mod.active{background:#3b82f6;color:#fff;border-color:#3b82f6}
+#toolbar button.sym{background:#1a2a1a;color:#6ee76e}
+#toolbar button.arrow{font-size:16px;min-width:42px}
 </style>
 </head>
 <body>
 <div id="status" class="ko">Connexion...</div>
 <div id="terminal"></div>
+<div id="toolbar">
+  <div class="row">
+    <button class="mod" data-mod="ctrl">Ctrl</button>
+    <button class="mod" data-mod="alt">Opt</button>
+    <button class="mod" data-mod="meta">Cmd</button>
+    <button data-key="escape">Esc</button>
+    <button data-key="tab">Tab</button>
+    <button class="arrow" data-key="up">↑</button>
+    <button class="arrow" data-key="down">↓</button>
+    <button class="arrow" data-key="left">←</button>
+    <button class="arrow" data-key="right">→</button>
+  </div>
+  <div class="row">
+    <button class="sym" data-char="|">|</button>
+    <button class="sym" data-char="~">~</button>
+    <button class="sym" data-char="/">/ </button>
+    <button class="sym" data-char="-">-</button>
+    <button class="sym" data-char="_">_</button>
+    <button class="sym" data-char="\`">\`</button>
+    <button class="sym" data-char="\\"">\\</button>
+    <button class="sym" data-char="{">{</button>
+    <button class="sym" data-char="}">}</button>
+    <button class="sym" data-char="[">[</button>
+    <button class="sym" data-char="]">]</button>
+  </div>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5/lib/xterm.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0/lib/addon-fit.min.js"></script>
 <script>
 const params = new URLSearchParams(location.search);
 const room = params.get('room');
-const keyHex = location.hash.slice(1); // E2E key from URL fragment (never sent to server)
+const keyHex = location.hash.slice(1);
 const st = document.getElementById('status');
 
 // --- E2E Crypto (AES-256-GCM via Web Crypto API) ---
@@ -79,7 +128,6 @@ async function decrypt(b64) {
   const iv = buf.slice(0, 12);
   const tag = buf.slice(12, 28);
   const ciphertext = buf.slice(28);
-  // AES-GCM expects ciphertext+tag concatenated
   const combined = new Uint8Array(ciphertext.length + tag.length);
   combined.set(ciphertext);
   combined.set(tag, ciphertext.length);
@@ -92,10 +140,8 @@ async function encrypt(text) {
   const encoded = new TextEncoder().encode(text);
   const encrypted = await crypto.subtle.encrypt({name: 'AES-GCM', iv}, cryptoKey, encoded);
   const encBytes = new Uint8Array(encrypted);
-  // Web Crypto appends tag (16 bytes) to ciphertext
   const ciphertext = encBytes.slice(0, encBytes.length - 16);
   const tag = encBytes.slice(encBytes.length - 16);
-  // Format: base64(iv + tag + ciphertext) — same as server
   const out = new Uint8Array(12 + 16 + ciphertext.length);
   out.set(iv);
   out.set(tag, 12);
@@ -104,7 +150,7 @@ async function encrypt(text) {
 }
 
 // --- Terminal setup ---
-const term = new Terminal({fontSize:14,fontFamily:'Menlo,Monaco,monospace',theme:{background:'#1a1a2e'},cursorBlink:true});
+const term = new Terminal({fontSize:13,fontFamily:'Menlo,Monaco,monospace',theme:{background:'#1a1a2e'},cursorBlink:true});
 const fit = new FitAddon.FitAddon();
 term.loadAddon(fit);
 term.open(document.getElementById('terminal'));
@@ -120,19 +166,130 @@ async function connect(){
     try {
       const plain = await decrypt(e.data);
       term.write(plain);
-    } catch(err) { /* ignore malformed */ }
+    } catch(err) {}
   };
   ws.onclose=()=>{st.textContent='● Déconnecté';st.className='ko';setTimeout(connect,2000);};
 }
 
-term.onData(async d=>{if(ws&&ws.readyState===1){const enc=await encrypt(d);ws.send(enc);}});
+// Send data to remote terminal
+async function sendInput(data) {
+  if (ws && ws.readyState === 1) {
+    const enc = await encrypt(data);
+    ws.send(enc);
+  }
+}
+
+term.onData(async d => { await sendInput(d); });
 term.onResize(async({cols,rows})=>{if(ws&&ws.readyState===1){const enc=await encrypt(JSON.stringify({type:'resize',cols,rows}));ws.send(enc);}});
 window.addEventListener('resize',()=>fit.fit());
 
 // iOS Safari: force focus on textarea for keyboard input
-document.querySelector('#terminal').addEventListener('touchstart',()=>{
+document.querySelector('#terminal').addEventListener('touchstart',(e)=>{
+  if(e.target.closest('#toolbar')) return;
   const ta=document.querySelector('.xterm-helper-textarea');
   if(ta){ta.focus();ta.click();}
+});
+
+// --- Toolbar: Sticky Modifiers + Special Keys ---
+const modState = { ctrl: false, alt: false, meta: false };
+
+function updateModButtons() {
+  document.querySelectorAll('#toolbar button.mod').forEach(btn => {
+    const mod = btn.dataset.mod;
+    btn.classList.toggle('active', modState[mod]);
+  });
+}
+
+function resetMods() {
+  modState.ctrl = false;
+  modState.alt = false;
+  modState.meta = false;
+  updateModButtons();
+}
+
+// Apply active modifiers to a character and return the sequence to send
+function applyModifiers(char) {
+  let seq = char;
+  if (modState.ctrl && char.length === 1) {
+    const code = char.toUpperCase().charCodeAt(0);
+    if (code >= 64 && code <= 95) {
+      seq = String.fromCharCode(code - 64);
+    } else if (code >= 97 && code <= 122) {
+      seq = String.fromCharCode(code - 96);
+    }
+  }
+  if (modState.alt) {
+    seq = '\\x1b' + seq;
+  }
+  // meta (Cmd) — treated as ESC prefix in most terminals (same as alt)
+  if (modState.meta && !modState.alt) {
+    seq = '\\x1b' + seq;
+  }
+  resetMods();
+  return seq;
+}
+
+// Arrow key sequences with modifiers
+function arrowSeq(dir) {
+  const base = {up:'A',down:'B',right:'C',left:'D'}[dir];
+  const hasMod = modState.ctrl || modState.alt || modState.meta;
+  if (!hasMod) { resetMods(); return '\\x1b[' + base; }
+  // CSI 1;mod code: 2=Shift,3=Alt,5=Ctrl,7=Ctrl+Alt
+  let mod = 1;
+  if (modState.ctrl) mod += 4;
+  if (modState.alt || modState.meta) mod += 2;
+  resetMods();
+  return '\\x1b[1;' + mod + base;
+}
+
+// Handle toolbar button taps
+document.getElementById('toolbar').addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  const btn = e.target.closest('button');
+  if (!btn) return;
+
+  // Modifier toggle
+  if (btn.dataset.mod) {
+    modState[btn.dataset.mod] = !modState[btn.dataset.mod];
+    updateModButtons();
+    return;
+  }
+
+  // Special keys
+  if (btn.dataset.key) {
+    let seq;
+    switch(btn.dataset.key) {
+      case 'escape': seq = '\\x1b'; resetMods(); break;
+      case 'tab': seq = '\\x09'; resetMods(); break;
+      case 'up': seq = arrowSeq('up'); break;
+      case 'down': seq = arrowSeq('down'); break;
+      case 'left': seq = arrowSeq('left'); break;
+      case 'right': seq = arrowSeq('right'); break;
+    }
+    if (seq) sendInput(seq);
+    return;
+  }
+
+  // Symbol characters
+  if (btn.dataset.char) {
+    const seq = applyModifiers(btn.dataset.char);
+    sendInput(seq);
+    return;
+  }
+});
+
+// Intercept keyboard input to apply modifiers from toolbar
+const origAttachCustomKeyEventHandler = term.attachCustomKeyEventHandler;
+term.attachCustomKeyEventHandler((ev) => {
+  if (ev.type === 'keydown' && (modState.ctrl || modState.alt || modState.meta)) {
+    if (ev.key.length === 1) {
+      ev.preventDefault();
+      const seq = applyModifiers(ev.key);
+      sendInput(seq);
+      return false;
+    }
+  }
+  return true;
 });
 
 if(room&&keyHex)connect();
