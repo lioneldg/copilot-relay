@@ -15,7 +15,7 @@ const VIEWER_HTML = `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Copilot Remote</title>
@@ -23,7 +23,7 @@ const VIEWER_HTML = `<!DOCTYPE html>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;background:#1a1a2e;overflow:hidden;touch-action:manipulation}
-#terminal{height:calc(100% - 88px);width:100%}
+#terminal{height:calc(100% - 88px - env(safe-area-inset-bottom,0px));width:100%}
 .xterm{height:100%;padding:4px}
 #status{position:fixed;top:8px;right:8px;padding:4px 10px;border-radius:8px;font-size:11px;font-family:-apple-system,sans-serif;z-index:99}
 .ok{background:rgba(74,222,128,0.2);color:#4ade80}
@@ -34,7 +34,7 @@ html,body{height:100%;background:#1a1a2e;overflow:hidden;touch-action:manipulati
 #toolbar{
   position:fixed;bottom:0;left:0;right:0;
   background:#0d0d1a;border-top:1px solid #333;
-  display:flex;flex-direction:column;gap:4px;padding:6px 4px;
+  display:flex;flex-direction:column;gap:4px;padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px)) 4px;
   z-index:100;-webkit-user-select:none;user-select:none;
 }
 #toolbar .row{display:flex;gap:4px;justify-content:center;flex-wrap:nowrap;overflow-x:auto}
@@ -161,7 +161,13 @@ async function connect(){
   if (!(await initCrypto())) return;
   const proto = location.protocol==='https:'?'wss:':'ws:';
   ws = new WebSocket(proto+'//'+location.host+'/ws?room='+room+'&role=client');
-  ws.onopen=()=>{st.textContent='🔒 E2E chiffré';st.className='enc';fit.fit();};
+  ws.onopen=async()=>{
+    st.textContent='🔒 E2E chiffré';st.className='enc';
+    fit.fit();
+    // Force send current size (fit.fit won't trigger onResize if size unchanged)
+    const enc=await encrypt(JSON.stringify({type:'resize',cols:term.cols,rows:term.rows}));
+    ws.send(enc);
+  };
   ws.onmessage=async(e)=>{
     try {
       const plain = await decrypt(e.data);
