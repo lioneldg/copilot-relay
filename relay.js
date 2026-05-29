@@ -161,7 +161,7 @@ async function connect(){
   if (!(await initCrypto())) return;
   const proto = location.protocol==='https:'?'wss:':'ws:';
   ws = new WebSocket(proto+'//'+location.host+'/ws?room='+room+'&role=client');
-  ws.onopen=()=>{st.textContent='🔒 E2E chiffré';st.className='enc';};
+  ws.onopen=()=>{st.textContent='🔒 E2E chiffré';st.className='enc';fit.fit();};
   ws.onmessage=async(e)=>{
     try {
       const plain = await decrypt(e.data);
